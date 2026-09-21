@@ -10,17 +10,30 @@
     <!-- PANTALLAS DE AUTENTICACIÓN Y LOBBY -->
     <div id="ui-layer">
         
-        <!-- Pantalla de Login / Registro -->
-        <div id="auth-screen" class="screen panel">
-            <h1>1V1 ONLINE</h1>
+        <!-- Pantalla de Login / Registro estilo Tarjeta -->
+        <div id="auth-screen" class="screen panel auth-card">
+            <!-- Pestañas superiores -->
+            <div class="auth-tabs">
+                <button id="tab-login" class="tab-btn active">Iniciar Sesión</button>
+                <button id="tab-register" class="tab-btn">Registrarse</button>
+            </div>
+
+            <!-- Título dinámico -->
+            <h2 id="auth-title">BIENVENIDO DE NUEVO</h2>
+
+            <!-- Formulario con nombre de usuario -->
             <div class="form-group">
-                <input type="email" id="email" placeholder="Correo electrónico">
-                <input type="password" id="password" placeholder="Contraseña">
+                <label for="username">Nombre de Usuario</label>
+                <input type="text" id="username" placeholder="Ej: ShadowNinja" autocomplete="off">
+
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" placeholder="••••••••">
             </div>
-            <div class="buttons">
-                <button id="btn-login" class="btn primary">INICIAR SESIÓN</button>
-                <button id="btn-register" class="btn secondary">CREAR CUENTA</button>
-            </div>
+
+            <!-- Botón de acción principal -->
+            <button id="btn-auth-submit" class="btn primary-action">ENTRAR AL LOBBY</button>
+            
+            <!-- Mensaje de error -->
             <p id="auth-error" class="error-msg"></p>
         </div>
 
