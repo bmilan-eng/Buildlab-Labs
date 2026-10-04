@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arena Build 1v1 & AimLabs CS2</title>
+  
+  <!-- Librerías CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    /* --- ESTILOS GENERALES Y RESET --- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b0c10;
+      color: #fff;
+    }
+
+    #bg-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    #aimlabs-canvas-container, #arena-canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    /* --- CAPAS DE SUPERPOSICIÓN --- */
+    .modal-overlay, .notification-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(5, 5, 12, 0.85);
+      backdrop-filter: blur(12px);
+    }
+
+    /* --- TARJETA DE AUTENTICACIÓN --- */
+    .auth-card {
+      width: 400px;
+      background: rgba(18, 20, 32, 0.9);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 0 40px rgba(0, 240, 255, 0.2);
+    }
+
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 25px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      color: #888;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .tab-btn.active {
+      color: #00f0ff;
+      border-bottom: 2px solid #00f0ff;
+    }
+
+    .auth-form h2 {
+      font-size: 18px;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .input-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #00f0ff;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    }
+
+    .auth-error {
+      color: #ff3366;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    /* --- NOTIFICACIÓN DE INVITACIÓN --- */
+    .notification-card {
+      width: 360px;
+      background: rgba(20, 24, 40, 0.95);
+      border: 2px solid #00f0ff;
+      border-radius: 16px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.4);
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .notification-card h3 { margin: 12px 0 6px 0; font-size: 18px; }
+    .notification-card p { font-size: 13px; color: #aaa; margin-bottom: 20px; }
+    .notification-actions { display: flex; gap: 10px; }
+
+    /* --- INTERFAZ PRINCIPAL DEL LOBBY --- */
+    #lobby-container {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30px;
+      background: radial-gradient(circle at center, rgba(15, 16, 32, 0.4) 0%, rgba(5, 5, 10, 0.85) 100%);
+    }
+
+    .lobby-header { display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 32px; font-weight: 900; font-style: italic; text-shadow: 0 0 15px rgba(0, 195, 255, 0.6); }
+    .logo span { color: #00f0ff; }
+
+    .fn-pass-btn {
+      background: linear-gradient(135deg, #f59e0b 0%, #ec4899 50%, #8b5cf6 100%);
+      color: #ffffff;
+      font-family: 'Segoe UI', Impact, sans-serif;
+      font-weight: 900;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 10px 24px;
+      border: 2px solid #ffffff;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.6), inset 0 0 10px rgba(255, 255, 255, 0.6);
+      transform: skewX(-12deg);
+      transition: all 0.25s ease;
+      outline: none;
+    }
+
+    .fn-pass-btn:hover {
+      transform: skewX(-12deg) scale(1.08);
+      box-shadow: 0 0 28px rgba(245, 158, 11, 0.9), inset 0 0 15px rgba(255, 255, 255, 0.9);
+      border-color: #ffe600;
+    }
+
+    .fn-pass-btn span {
+      display: inline-block;
+      transform: skewX(12deg);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #btn-logout { background: none; border: none; cursor: pointer; font-size: 16px; margin-left: 5px; }
+
+    .lobby-main { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; margin-bottom: 20px; }
+    .modes-panel { flex: 1; }
+    .modes-panel h2 { font-size: 14px; letter-spacing: 2px; color: #888; margin-bottom: 15px; }
+    .cards-container { display: flex; gap: 20px; flex-wrap: wrap; }
+
+    .mode-card {
+      position: relative;
+      width: 250px;
+      height: 190px;
+      background: rgba(20, 22, 35, 0.7);
+      border-radius: 14px;
+      padding: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .mode-card:hover { transform: translateY(-5px); border-color: rgba(0, 240, 255, 0.5); }
+    .mode-card.active {
+      border-color: #00f0ff;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(20, 22, 35, 0.8) 100%);
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+    }
+
+    .badge { position: absolute; top: 15px; right: 15px; background: #00f0ff; color: #000; font-weight: bold; font-size: 11px; padding: 4px 8px; border-radius: 6px; }
+    .badge.offline { background: #ffaa00; }
+
+    .connected-peer-subtext {
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #00ff88;
+      text-shadow: 0 0 8px rgba(0,255,136,0.5);
+    }
+
+    .party-panel { width: 360px; }
+    .glass-box {
+      background: rgba(18, 20, 32, 0.75);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(15px);
+    }
+
+    .glass-box h3 { font-size: 16px; letter-spacing: 1px; margin-bottom: 12px; text-align: center; }
+
+    .status-indicator { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #ccc; margin-bottom: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.disconnected { background: #ff3366; }
+    .dot.waiting { background: #ffaa00; }
+    .dot.connected { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+
+    .user-online-badge { text-align: center; background: rgba(0, 240, 255, 0.08); padding: 6px; border-radius: 8px; font-size: 12px; margin-bottom: 15px; }
+    .user-online-badge strong { color: #00f0ff; margin-left: 5px; }
+
+    .divider { text-align: center; margin: 12px 0; position: relative; }
+    .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 25%; height: 1px; background: rgba(255,255,255,0.1); }
+    .divider::before { left: 0; } .divider::after { right: 0; }
+    .divider span { font-size: 10px; color: #888; letter-spacing: 1px; }
+
+    .room-action { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+
+    /* BOTONES GENERALES */
+    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+    .btn-secondary { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.2); }
+    .btn-primary {
+      background: linear-gradient(90deg, #ff0055 0%, #ff5500 100%);
+      color: #fff;
+      font-size: 16px;
+      padding: 14px;
+      box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+    }
+    .btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 30px rgba(255, 0, 85, 0.7); }
+
+    .hidden { display: none !important; }
+
+    /* --- HUD Y ELEMENTOS DE JUEGO 1V1 ARENA --- */
+    #arena-hud {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      background: rgba(10, 12, 20, 0.85);
+      border: 2px solid #00f0ff;
+      border-radius: 12px;
+      padding: 10px 30px;
+      z-index: 50;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    }
+
+    .kill-score-box {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    .kill-score-box .my-kills { color: #00ff88; }
+    .kill-score-box .vs-text { color: #888; font-size: 14px; }
+    .kill-score-box .enemy-kills { color: #ff3366; }
+
+    #weapon-hud {
+      position: absolute;
+      bottom: 25px;
+      right: 30px;
+      background: rgba(10, 12, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      padding: 12px 20px;
+      z-index: 50;
+      text-align: right;
+    }
+
+    #weapon-name { font-size: 18px; font-weight: bold; color: #00f0ff; }
+    #weapon-ammo { font-size: 14px; color: #aaa; margin-top: 4px; }
+
+    #health-hud {
+      position: absolute;
+      bottom: 25px;
+      left: 30px;
+      background: rgba(10, 12, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      padding: 12px 20px;
+      z-index: 50;
+    }
+
+    .hp-bar-bg { width: 180px; height: 12px; background: #222; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+    .hp-bar-fill { width: 100%; height: 100%; background: #00ff88; transition: width 0.15s ease; }
+
+    #arena-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 45;
+    }
+    #arena-crosshair::before, #arena-crosshair::after {
+      content: '';
+      position: absolute;
+      background: #00f0ff;
+    }
+    #arena-crosshair::before { top: 4px; left: -6px; width: 22px; height: 2px; }
+    #arena-crosshair::after { top: -6px; left: 4px; width: 2px; height: 22px; }
+
+    /* --- ESTILOS DE AIMLABS INTEGRADOS --- */
+    #hud {
+      position: absolute;
+      top: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 40px;
+      font-size: 16px; font-weight: bold;
+      color: #ffffff;
+      background: rgba(18, 22, 31, 0.95);
+      padding: 12px 40px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      letter-spacing: 1px;
+    }
+    .stat span { color: #00ffff; font-family: monospace; font-size: 18px; }
+
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 5px; height: 5px;
+      transform: translate(-50%, -50%);
+      background-color: #ffffff;
+      border-radius: 50%;
+      z-index: 40;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 0 4px rgba(0,0,0,0.8);
+    }
+
+    #menu-container {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(13, 15, 20, 0.96);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      color: #ffffff;
+      padding: 20px;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    .btn-close-aimlabs-menu {
+      position: absolute;
+      top: 20px; right: 25px;
+      z-index: 210;
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .btn-close-aimlabs-menu:hover { background: #dc2626; transform: scale(1.05); }
+
+    .main-dashboard {
+      display: grid;
+      grid-template-columns: 340px 380px 340px;
+      gap: 20px;
+      max-width: 1120px;
+      width: 100%;
+    }
+
+    .panel-box {
+      background: #161920;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 22px;
+      border-radius: 8px;
+      box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .panel-box h1 {
+      font-size: 22px;
+      margin: 0 0 5px 0;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-weight: 900;
+      color: #ffffff;
+      text-align: center;
+    }
+    .subtitle { 
+      color: #515f73; 
+      font-size: 11px; 
+      margin-bottom: 15px; 
+      text-transform: uppercase; 
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #00ffff;
+      text-transform: uppercase;
+      margin-bottom: 15px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+
+    .coins-badge {
+      background: #222733;
+      border: 1px solid #f59e0b;
+      color: #f59e0b;
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .ban-banner {
+      display: none;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .setting-group { margin-bottom: 15px; text-align: left; }
+    .setting-group label {
+      display: block; font-size: 10px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 1px;
+      font-weight: 700;
+    }
+    
+    select, input[type="select"] {
+      width: 100%;
+      background: #0a0b0f;
+      color: #f1f5f9;
+      border: 1px solid #2d3748;
+      padding: 10px;
+      font-size: 12px;
+      border-radius: 4px;
+      outline: none;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    .slider-container { display: flex; align-items: center; gap: 12px; }
+    input[type="range"] {
+      flex: 1;
+      accent-color: #00ffff;
+      cursor: pointer;
+    }
+    .slider-val { font-family: monospace; font-size: 14px; width: 45px; text-align: right; color: #00ffff; }
+
+    .aim-btn {
+      background: #00ffff;
+      color: #0a0b0f;
+      border: none;
+      padding: 14px;
+      font-size: 13px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      width: 100%;
+      letter-spacing: 1.5px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .aim-btn:hover { background: #00e5e5; }
+    .aim-btn:active { transform: scale(0.98); }
+    .aim-btn:disabled { background: #2a3241; color: #515f73; cursor: not-allowed; }
+
+    body.theme-light #menu-container {
+      background: rgba(235, 240, 245, 0.96);
+      color: #1e293b;
+    }
+    body.theme-light .panel-box {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+    body.theme-light h1 { color: #0f172a; }
+    body.theme-light .subtitle { color: #64748b; }
+    body.theme-light .panel-title { color: #0284c7; border-bottom-color: #e2e8f0; }
+    body.theme-light label { color: #475569; }
+    body.theme-light select {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-color: #cbd5e1;
+    }
+    body.theme-light .coins-badge {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #b45309;
+    }
+    body.theme-light .roulette-wrapper {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    body.theme-light .inventory-item {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    body.theme-light .inventory-item-name { color: #0f172a; }
+    body.theme-light .slider-val { color: #0284c7; }
+
+    .roulette-wrapper {
+      position: relative;
+      width: 100%;
+      height: 95px;
+      overflow: hidden;
+      border-radius: 6px;
+      background: #0a0b0f;
+      border: 2px solid #2d3748;
+      margin-bottom: 12px;
+    }
+    .roulette-pointer {
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 3px; height: 100%;
+      background: #ffcc00;
+      z-index: 2;
+      box-shadow: 0 0 8px #ffcc00;
+    }
+
+    .roulette-track {
+      display: flex;
+      position: absolute;
+      left: 0; top: 0; height: 100%;
+      will-change: transform;
+    }
+    .skin-card {
+      width: 85px;
+      height: 85px;
+      margin: 5px;
+      background: #12151e;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-bottom: 4px solid #fff;
+      padding: 4px;
+    }
+    .skin-card .skin-icon {
+      width: 38px; height: 26px;
+      border-radius: 3px;
+      margin-bottom: 4px;
+    }
+    .skin-card .name {
+      font-size: 8px;
+      font-weight: bold;
+      color: #fff;
+      text-align: center;
+      line-height: 1.1;
+    }
+
+    .btn-case-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .btn-case-std { background: #f59e0b; color: #000; }
+    .btn-case-std:hover { background: #d97706; }
+    .btn-case-lucky { background: linear-gradient(135deg, #a855f7, #ec4899); color: #fff; }
+    .btn-case-unowned { background: linear-gradient(135deg, #10b981, #3b82f6); color: #fff; }
+
+    .inventory-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 5px;
+    }
+    .inventory-list::-webkit-scrollbar { width: 4px; }
+    .inventory-list::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+
+    .inventory-item {
+      background: #0a0b0f;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .inventory-item-info { display: flex; align-items: center; gap: 10px; }
+    .inventory-item-icon { width: 22px; height: 16px; border-radius: 2px; }
+    .inventory-item-name { font-size: 11px; font-weight: bold; }
+    .inventory-item-rarity { font-size: 9px; color: #94a3b8; }
+    .btn-equip {
+      width: auto; padding: 5px 10px; font-size: 9px;
+      background: #334155; color: #fff;
+    }
+    .btn-equip.active { background: #10b981; color: #fff; }
+
+    #admin-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(10, 11, 15, 0.96);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .admin-box {
+      background: #161920;
+      border: 1px solid #00ffff;
+      border-radius: 8px;
+      width: 860px;
+      max-width: 95%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #2d3748;
+      padding-bottom: 10px;
+    }
+    .admin-header h2 {
+      margin: 0;
+      color: #00ffff;
+      font-size: 16px;
+      letter-spacing: 1.5px;
+    }
+    .admin-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    #preview-container {
+      width: 100%;
+      height: 340px;
+      background: #0a0b0f;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas 3D de Fondo del Lobby -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Contenedor para Canvas 3D de Aimlabs -->
+  <div id="aimlabs-canvas-container"></div>
+
+  <!-- Contenedor para Canvas 3D de la Arena 1v1 -->
+  <div id="arena-canvas-container" class="hidden"></div>
+
+  <!-- HUD Y ELEMENTOS DE LA ARENA 1V1 -->
+  <div id="arena-crosshair" class="hidden"></div>
+
+  <div id="arena-hud" class="hidden">
+    <div class="kill-score-box">
+      <span class="my-kills" id="my-kills-display">0</span>
+      <span class="vs-text">KILLS / 10</span>
+      <span class="enemy-kills" id="enemy-kills-display">0</span>
+    </div>
+  </div>
+
+  <div id="health-hud" class="hidden">
+    <div style="font-size:12px; color:#aaa; font-weight:bold;">SALUD</div>
+    <div class="hp-bar-bg">
+      <div class="hp-bar-fill" id="hp-bar-fill"></div>
+    </div>
+  </div>
+
+  <div id="weapon-hud" class="hidden">
+    <div id="weapon-name">SUBFUSIL</div>
+    <div id="weapon-ammo">30 / ∞</div>
+    <div style="font-size:10px; color:#888; margin-top:3px;">[1] Subfusil  |  [2] Escopeta</div>
+  </div>
+
+  <!-- MODAL DE INICIO DE SESIÓN Y REGISTRO EN LA NUBE -->
+  <div id="auth-modal" class="modal-overlay">
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="tab-login" class="tab-btn active">Iniciar Sesión</button>
+        <button id="tab-register" class="tab-btn">Registrarse</button>
+      </div>
+
+      <form id="form-login" class="auth-form">
+        <h2>BIENVENIDO DE NUEVO</h2>
+        <div class="input-group">
+          <label>Nombre de Usuario (Nick)</label>
+          <input type="text" id="login-username" placeholder="Ej: ShadowNinja" required autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-login-submit">ENTRAR AL LOBBY</button>
+      </form>
+
+      <form id="form-register" class="auth-form hidden">
+        <h2>CREAR CUENTA EN LA NUBE</h2>
+        <div class="input-group">
+          <label>Nombre de Usuario (Nick Único)</label>
+          <input type="text" id="reg-username" placeholder="Sin espacios (Ej: ShadowNinja)" required autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Contraseña</label>
+          <input type="password" id="reg-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-reg-submit">CREAR CUENTA Y JUGAR</button>
+      </form>
+
+      <div id="auth-error" class="auth-error hidden"></div>
+    </div>
+  </div>
+
+  <!-- POP-UP DE INVITACIÓN ENTRANTE -->
+  <div id="invite-notification" class="notification-overlay hidden">
+    <div class="notification-card">
+      <div class="badge">Invitación de Partida</div>
+      <h3><span id="inviter-name">Amigo</span> te ha invitado a un 1v1</h3>
+      <p>¿Aceptas el duelo de combate?</p>
+      <div class="notification-actions">
+        <button id="btn-accept-invite" class="btn btn-primary">ACEPTAR</button>
+        <button id="btn-reject-invite" class="btn btn-secondary">RECHAZAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENEDOR DEL LOBBY PRINCIPAL -->
+  <div id="lobby-container" class="hidden">
+    <header class="lobby-header">
+      <div class="logo">ARENA<span>BUILD</span></div>
+      
+      <button id="btn-pass-aimlabs" class="fn-pass-btn">
+        <span>🏆 PASE AIMLABS</span>
+      </button>
+
+      <div class="user-profile">
+        <span class="avatar">👤</span>
+        <span id="player-name">Cargando...</span>
+        <button id="btn-logout" title="Cerrar Sesión">🚪</button>
+      </div>
+    </header>
+
+    <main class="lobby-main">
+      <section class="modes-panel">
+        <h2>SELECCIONAR MODO</h2>
+        <div class="cards-container">
+          <div class="mode-card active" data-mode="1v1" id="card-mode-1v1">
+            <div class="badge">Online</div>
+            <h3>1v1 Arena & Build</h3>
+            <p>Invita a un amigo por su usuario para combate 1v1 en la arena.</p>
+            <div id="connected-peer-info" class="connected-peer-subtext hidden">
+              Conectado con: <span id="connected-peer-name">---</span>
+            </div>
+          </div>
+
+          <div class="mode-card" data-mode="practice">
+            <div class="badge offline">Offline</div>
+            <h3>Práctica & Free Build</h3>
+            <p>Entrena tu edición y velocidad sin presión de rival.</p>
+          </div>
+
+          <div class="mode-card" data-mode="aimlabs">
+            <div class="badge offline">Offline</div>
+            <h3>Aimlabs</h3>
+            <p>Mejora tu puntería, precisión y tiempo de reacción con objetivos móviles.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="party-panel">
+        <div class="glass-box">
+          <h3>SALA Y DUELOS</h3>
+          
+          <div class="status-indicator">
+            <span class="dot disconnected" id="status-dot"></span>
+            <span id="status-text">Desconectado</span>
+          </div>
+
+          <div class="user-online-badge">
+            Tu ID / Nick: <strong id="my-peer-id">---</strong>
+          </div>
+
+          <div class="room-action">
+            <input type="text" id="target-peer-id" placeholder="Nick del Amigo...">
+            <button id="btn-connect-peer" class="btn btn-secondary">INVITAR / UNIRSE</button>
+          </div>
+
+          <div class="divider"><span>O MODO INDIVIDUAL</span></div>
+
+          <button id="btn-play-game" class="btn btn-primary">¡JUGAR!</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ELEMENTOS JUGABLES DE AIMLABS -->
+  <div id="crosshair"></div>
+
+  <div id="hud">
+    <div class="stat">PUNTOS: <span id="score">0</span></div>
+    <div class="stat">TIEMPO: <span id="time">30</span>s</div>
+    <div class="stat">PRECISIÓN: <span id="accuracy">100</span>%</div>
+  </div>
+
+  <!-- MENÚ AIMLABS -->
+  <div id="menu-container" style="display: none;">
+    <button id="btn-close-aimlabs-menu" class="btn-close-aimlabs-menu">← VOLVER AL LOBBY</button>
+    <div class="main-dashboard">
+
+      <div class="panel-box">
+        <div>
+          <div class="panel-title">📦 CAJA CS2 (<span id="total-skins-count">31</span> SKINS)</div>
+          <div class="roulette-wrapper">
+            <div class="roulette-pointer"></div>
+            <div class="roulette-track" id="roulette-track"></div>
+          </div>
+
+          <div class="btn-case-container">
+            <button id="open-std-btn" class="aim-btn btn-case-std">ABRIR NORMAL (2 🪙)</button>
+            <button id="open-lucky-btn" class="aim-btn btn-case-lucky">SUERTE +10% (5 🪙)</button>
+            <button id="open-unowned-btn" class="aim-btn btn-case-unowned">SKIN NUEVA GARANTIZADA (10 🪙)</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; text-align: left;">
+          <label style="font-size: 10px; color: #64748b;">PANEL DE ADMINISTRADOR</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" id="admin-code-input" placeholder="Código Admin..." style="padding: 8px; font-size: 11px;">
+            <button id="admin-login-btn" class="aim-btn" style="width: auto; padding: 8px 12px; font-size: 10px; background: #3b82f6; color: white;">ENTRAR</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div>
+          <h1>AIMLABS REALISTIC</h1>
+          <p class="subtitle">Entrenamiento & Colección CS2</p>
+
+          <div id="ban-banner" class="ban-banner">
+            🚫 CUENTA SUSPENDIDA POR SUPERAR 15.000 PTS<br>
+            TIEMPO RESTANTE: <span id="ban-timer">15:00</span>
+          </div>
+
+          <div class="coins-badge">
+            🪙 MONEDAS: <span id="coins-val">10</span>
+          </div>
+
+          <div class="setting-group">
+            <label for="game-mode">MODO DE ENTRENAMIENTO</label>
+            <select id="game-mode">
+              <option value="gridshot">GRIDSHOT (Reflejos Rápidos)</option>
+              <option value="microshot">MICROSHOT (Máxima Precisión)</option>
+            </select>
+          </div>
+
+          <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; margin-top: 10px;">
+            <div class="panel-title" style="font-size: 11px; margin-bottom: 10px; border-bottom: none; padding-bottom: 0;">⚙️ CONFIGURACIONES</div>
+            
+            <div class="setting-group">
+              <label for="sens-slider">SENSIBILIDAD RATÓN</label>
+              <div class="slider-container">
+                <input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0">
+                <span id="sens-val" class="slider-val">2.0</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <label for="sound-volume">VOLUMEN DE EFECTOS (SONIDO)</label>
+              <div class="slider-container">
+                <input type="range" id="sound-volume" min="0" max="1" step="0.05" value="0.5">
+                <span id="sound-val" class="slider-val">50%</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <label for="brightness-slider">BRILLO DE PANTALLA</label>
+              <div class="slider-container">
+                <input type="range" id="brightness-slider" min="50" max="150" step="5" value="100">
+                <span id="brightness-val" class="slider-val">100%</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <label for="theme-select">TEMA DEL MENÚ (MODO)</label>
+              <select id="theme-select">
+                <option value="dark">🌑 Modo Negro (Oscuro)</option>
+                <option value="light">☀️ Modo Blanco (Claro)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button id="start-btn" class="aim-btn" style="margin-top: 10px;">INICIAR ENTRENAMIENTO</button>
+      </div>
+
+      <div class="panel-box">
+        <div>
+          <div class="panel-title">🎒 INVENTARIO (<span id="inv-count">0</span>/<span id="inv-total">31</span>)</div>
+          <div class="inventory-list" id="inventory-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MENÚ ADMIN DE AIMLABS -->
+  <div id="admin-modal">
+    <div class="admin-box">
+      <div class="admin-header">
+        <h2>🛠️ CREADOR & CONFIGURADOR AVANZADO DE ARMAS 3D</h2>
+        <button id="close-admin-btn" class="aim-btn" style="width: auto; padding: 6px 14px; background: #ef4444; color: white; font-size: 11px;">CERRAR</button>
+      </div>
+
+      <div class="admin-grid">
+        <div>
+          <label style="color: #00ffff; text-align: center; display: block; margin-bottom: 8px;">VISTA PREVIA EN TIEMPO REAL</label>
+          <div id="preview-container"></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+          <div>
+            <label>Nombre de la Skin / Arma</label>
+            <input type="text" id="creator-name" value="Glock Personalizada" style="padding: 8px; font-size: 12px;">
+          </div>
+
+          <div>
+            <label>Categoría / Rareza</label>
+            <select id="creator-rarity" style="padding: 8px; font-size: 12px;">
+              <option value="Militar" data-color="#4b69ff">Militar (Azul)</option>
+              <option value="Épica" data-color="#8847ff">Épica (Púrpura)</option>
+              <option value="Mítica" data-color="#d32ce6">Mítica (Rosa)</option>
+              <option value="Legendaria" data-color="#eb4b4b">Legendaria (Roja/Oro)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Color Principal (Corredera)</label>
+              <input type="color" id="creator-color" value="#00ffff" style="width: 100%; height: 32px; background: #0a0b0f; border: 1px solid #2d3748; border-radius: 4px; cursor: pointer;">
+            </div>
+            <div style="flex: 1;">
+              <label>Color Secundario (Empuñadura)</label>
+              <input type="color" id="creator-color-sec" value="#181a1d" style="width: 100%; height: 32px; background: #0a0b0f; border: 1px solid #2d3748; border-radius: 4px; cursor: pointer;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Luz / Brillo Neón</label>
+              <input type="color" id="creator-emissive" value="#000000" style="width: 100%; height: 32px; background: #0a0b0f; border: 1px solid #2d3748; border-radius: 4px; cursor: pointer;">
+            </div>
+            <div style="flex: 1;">
+              <label>Intensidad Brillo: <span id="emissive-val" style="color:#00ffff;">0.0</span></label>
+              <input type="range" id="creator-emissive-intensity" min="0" max="3" step="0.1" value="0.0">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Estilo de Render</label>
+              <select id="creator-wireframe" style="padding: 8px; font-size: 12px;">
+                <option value="false">Sólido Normal</option>
+                <option value="true">Holograma (Wireframe)</option>
+              </select>
+            </div>
+            <div style="flex: 1;">
+              <label>Escala Arma: <span id="scale-val" style="color:#00ffff;">1.0x</span></label>
+              <input type="range" id="creator-scale" min="0.6" max="1.5" step="0.05" value="1.0">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Accesorio / Cañón</label>
+              <select id="creator-attach" style="padding: 8px; font-size: 12px;">
+                <option value="none">Ninguno</option>
+                <option value="silencer">Silenciador</option>
+                <option value="scope">Mira Telescópica</option>
+                <option value="compensator">Compensador</option>
+                <option value="heavy_deagle">Cuerpo Pesado Deagle</option>
+              </select>
+            </div>
+            <div style="flex: 1;">
+              <label>Pegatina Holográfica</label>
+              <select id="creator-sticker" style="padding: 8px; font-size: 12px;">
+                <option value="none">Sin Pegatina</option>
+                <option value="star">Estrella (★)</option>
+                <option value="lightning">Rayo (⚡)</option>
+                <option value="bio">Biohazard (☣)</option>
+                <option value="flame">Fuego (🔥)</option>
+                <option value="beast">Calavera (💀)</option>
+                <option value="sun">Sol (☀️)</option>
+                <option value="atom">Átomo (⚛️)</option>
+                <option value="dragon">Dragón (🐲)</option>
+                <option value="crown">Corona (👑)</option>
+                <option value="dragon_gold">Dragón Dorado (🐉)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Metalicidad: <span id="metal-val" style="color:#00ffff;">0.5</span></label>
+              <input type="range" id="creator-metal" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div style="flex: 1;">
+              <label>Rugosidad: <span id="rough-val" style="color:#00ffff;">0.3</span></label>
+              <input type="range" id="creator-rough" min="0" max="1" step="0.05" value="0.3">
+            </div>
+          </div>
+
+          <button id="save-skin-btn" class="aim-btn" style="margin-top: 8px; background: #10b981; color: white;">💾 GUARDAR CONFIGURACIÓN DE ARMA</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. BASE DE DATOS EN LA NUBE Y AUTENTICACIÓN
+       ========================================================================== */
+    const CLOUD_DB_URL = "https://arenabuild-1v1-default-rtdb.firebaseio.com/users/";
+    let currentUserNick = null;
+
+    async function getAccountFromCloud(username) {
+      const sanitized = username.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+      try {
+        const response = await fetch(`${CLOUD_DB_URL}${sanitized}.json`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function saveAccountToCloud(userData) {
+      const sanitized = userData.username.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+      try {
+        const response = await fetch(`${CLOUD_DB_URL}${sanitized}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        return response.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function syncCurrentUserData() {
+      if (!currentUserNick) return;
+      const userData = {
+        username: currentUserNick,
+        coins: coins,
+        ownedSkins: ownedSkins,
+        equippedSkin: equippedSkinId,
+        soundVolume: soundVolume,
+        theme: savedTheme,
+        brightness: savedBrightness,
+        customSkins: JSON.parse(localStorage.getItem('aimlabs_custom_created_skins')) || [],
+        lastActive: new Date().toISOString()
+      };
+      await saveAccountToCloud(userData);
+    }
+
+    /* ==========================================================================
+       2. FONDO 3D Y AUTENTICACIÓN DEL LOBBY
+       ========================================================================== */
+    const bgCanvas = document.getElementById('bg-canvas');
+    const bgScene = new THREE.Scene();
+    const bgCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const bgRenderer = new THREE.WebGLRenderer({ canvas: bgCanvas, antialias: true, alpha: true });
+    bgRenderer.setSize(window.innerWidth, window.innerHeight);
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+    const cubes = [];
+    for (let i = 0; i < 40; i++) {
+      const cube = new THREE.Mesh(geometry, material);
+      cube.position.set((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30);
+      cube.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      bgScene.add(cube);
+      cubes.push(cube);
+    }
+    bgCamera.position.z = 15;
+
+    function animateBg() {
+      requestAnimationFrame(animateBg);
+      cubes.forEach(c => {
+        c.rotation.x += 0.005;
+        c.rotation.y += 0.008;
+      });
+      bgRenderer.render(bgScene, bgCamera);
+    }
+    animateBg();
+
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+    const formLogin = document.getElementById('form-login');
+    const formRegister = document.getElementById('form-register');
+    const authModal = document.getElementById('auth-modal');
+    const lobbyContainer = document.getElementById('lobby-container');
+    const playerName = document.getElementById('player-name');
+    const btnLogout = document.getElementById('btn-logout');
+    const authError = document.getElementById('auth-error');
+
+    tabLogin.addEventListener('click', () => {
+      tabLogin.classList.add('active');
+      tabRegister.classList.remove('active');
+      formLogin.classList.remove('hidden');
+      formRegister.classList.add('hidden');
+      authError.classList.add('hidden');
+    });
+
+    tabRegister.addEventListener('click', () => {
+      tabRegister.classList.add('active');
+      tabLogin.classList.remove('active');
+      formRegister.classList.remove('hidden');
+      formLogin.classList.add('hidden');
+      authError.classList.add('hidden');
+    });
+
+    formLogin.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = document.getElementById('login-username').value.trim();
+      const pass = document.getElementById('login-password').value;
+      
+      if (!user) return;
+      authError.classList.add('hidden');
+      document.getElementById('btn-login-submit').textContent = "VERIFICANDO EN NUBE...";
+
+      const cloudAccount = await getAccountFromCloud(user);
+      document.getElementById('btn-login-submit').textContent = "ENTRAR AL LOBBY";
+
+      if (cloudAccount) {
+        if (cloudAccount.password && cloudAccount.password !== pass) {
+          authError.textContent = "Contraseña incorrecta para el usuario en la nube.";
+          authError.classList.remove('hidden');
+          return;
+        }
+        currentUserNick = cloudAccount.username || user;
+        if (cloudAccount.coins !== undefined) coins = cloudAccount.coins;
+        if (cloudAccount.ownedSkins) ownedSkins = cloudAccount.ownedSkins;
+        if (cloudAccount.equippedSkin) equippedSkinId = cloudAccount.equippedSkin;
+      } else {
+        authError.textContent = "Usuario no encontrado en la nube. Regístrate primero.";
+        authError.classList.remove('hidden');
+        return;
+      }
+
+      playerName.textContent = currentUserNick;
+      authModal.classList.add('hidden');
+      lobbyContainer.classList.remove('hidden');
+      saveUserData();
+      updateUIValues();
+      initPeerSystem(currentUserNick);
+    });
+
+    formRegister.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = document.getElementById('reg-username').value.trim();
+      const pass = document.getElementById('reg-password').value;
+
+      if (!user || user.length < 3) {
+        authError.textContent = "El nick debe tener al menos 3 caracteres.";
+        authError.classList.remove('hidden');
+        return;
+      }
+
+      authError.classList.add('hidden');
+      document.getElementById('btn-reg-submit').textContent = "GUARDANDO EN NUBE...";
+
+      const existingAcc = await getAccountFromCloud(user);
+      if (existingAcc) {
+        document.getElementById('btn-reg-submit').textContent = "CREAR CUENTA Y JUGAR";
+        authError.textContent = "Ese nick ya está registrado en la nube. Prueba con otro.";
+        authError.classList.remove('hidden');
+        return;
+      }
+
+      currentUserNick = user;
+      const newCloudAcc = {
+        username: user,
+        password: pass,
+        coins: 10,
+        ownedSkins: ['default'],
+        equippedSkin: 'default',
+        createdAt: new Date().toISOString()
+      };
+
+      await saveAccountToCloud(newCloudAcc);
+      document.getElementById('btn-reg-submit').textContent = "CREAR CUENTA Y JUGAR";
+
+      playerName.textContent = currentUserNick;
+      authModal.classList.add('hidden');
+      lobbyContainer.classList.remove('hidden');
+      saveUserData();
+      updateUIValues();
+      initPeerSystem(currentUserNick);
+    });
+
+    btnLogout.addEventListener('click', () => {
+      currentUserNick = null;
+      if (peer) peer.destroy();
+      lobbyContainer.classList.add('hidden');
+      authModal.classList.remove('hidden');
+    });
+
+    let currentMode = '1v1';
+    const modeCards = document.querySelectorAll('.mode-card');
+    modeCards.forEach(card => {
+      card.addEventListener('click', () => {
+        modeCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        currentMode = card.getAttribute('data-mode');
+      });
+    });
+
+    /* ==========================================================================
+       3. PEERJS, CONEXIÓN MULTJUGADOR E INVITACIONES
+       ========================================================================== */
+    let peer = null;
+    let activeConn = null;
+    let connectedOpponentNick = null;
+
+    function updateConnectedPeerUI(nickName) {
+      connectedOpponentNick = nickName;
+      const subtext = document.getElementById('connected-peer-info');
+      const nameElem = document.getElementById('connected-peer-name');
+      const statusText = document.getElementById('status-text');
+
+      if (nickName) {
+        nameElem.textContent = nickName;
+        subtext.classList.remove('hidden');
+        statusText.textContent = `En sala con ${nickName}`;
+      } else {
+        subtext.classList.add('hidden');
+        statusText.textContent = 'Conectado';
+      }
+    }
+
+    function setupConnectionHandlers(conn) {
+      activeConn = conn;
+
+      conn.on('data', (data) => {
+        if (data.type === 'INVITE') {
+          document.getElementById('inviter-name').textContent = data.inviterNick || 'Un amigo';
+          document.getElementById('invite-notification').classList.remove('hidden');
+        } else if (data.type === 'ACCEPT') {
+          updateConnectedPeerUI(data.senderNick);
+          alert(`¡${data.senderNick} ha aceptado tu invitación!`);
+        } else if (data.type === 'REJECT') {
+          alert(`${data.senderNick} ha rechazado tu invitación.`);
+          updateConnectedPeerUI(null);
+        } else if (data.type === 'START_1V1') {
+          start1v1ArenaGame(false);
+        } else if (data.type === 'PLAYER_MOVE') {
+          updateOpponentPosition(data);
+        } else if (data.type === 'PLAYER_SHOOT') {
+          handleOpponentShoot(data);
+        } else if (data.type === 'TAKE_DAMAGE') {
+          handleReceivedDamage(data.damage, data.attacker);
+        } else if (data.type === 'PLAYER_KILLED') {
+          handleOpponentKilled();
+        }
+      });
+
+      conn.on('close', () => {
+        updateConnectedPeerUI(null);
+      });
+    }
+
+    function initPeerSystem(username) {
+      if (!username) return;
+      const sanitizedId = 'arenabuild_' + username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+      if (peer) peer.destroy();
+
+      try {
+        peer = new Peer(sanitizedId);
+
+        peer.on('open', () => {
+          document.getElementById('my-peer-id').textContent = username;
+          document.getElementById('status-dot').className = 'dot connected';
+          document.getElementById('status-text').textContent = 'Conectado (Nube)';
+        });
+
+        peer.on('connection', (conn) => {
+          setupConnectionHandlers(conn);
+        });
+
+        peer.on('error', (err) => {
+          console.warn('PeerJS info:', err);
+        });
+      } catch(e) {}
+    }
+
+    document.getElementById('btn-connect-peer').addEventListener('click', () => {
+      const targetNick = document.getElementById('target-peer-id').value.trim();
+      if (!targetNick) {
+        alert("Escribe el nick de tu amigo para enviarle la invitación.");
+        return;
+      }
+
+      if (!peer || peer.disconnected) {
+        alert("Tu conexión en línea no está activa aún.");
+        return;
+      }
+
+      const targetPeerId = 'arenabuild_' + targetNick.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      document.getElementById('status-text').textContent = `Invitando a ${targetNick}...`;
+
+      const conn = peer.connect(targetPeerId);
+      conn.on('open', () => {
+        setupConnectionHandlers(conn);
+        conn.send({
+          type: 'INVITE',
+          inviterNick: currentUserNick || 'Un Amigo'
+        });
+        document.getElementById('status-text').textContent = `Invitación enviada a ${targetNick}`;
+      });
+    });
+
+    document.getElementById('btn-accept-invite').addEventListener('click', () => {
+      const inviterName = document.getElementById('inviter-name').textContent;
+      if (activeConn) {
+        activeConn.send({
+          type: 'ACCEPT',
+          senderNick: currentUserNick
+        });
+      }
+      document.getElementById('invite-notification').classList.add('hidden');
+      updateConnectedPeerUI(inviterName);
+    });
+
+    document.getElementById('btn-reject-invite').addEventListener('click', () => {
+      if (activeConn) {
+        activeConn.send({
+          type: 'REJECT',
+          senderNick: currentUserNick
+        });
+      }
+      document.getElementById('invite-notification').classList.add('hidden');
+    });
+
+    /* ==========================================================================
+       4. NAVEGACIÓN Y APERTURA DE AIMLABS
+       ========================================================================== */
+    const btnPassAimlabs = document.getElementById('btn-pass-aimlabs');
+    const menuContainer = document.getElementById('menu-container');
+    const btnCloseAimlabsMenu = document.getElementById('btn-close-aimlabs-menu');
+
+    btnPassAimlabs.addEventListener('click', () => {
+      menuContainer.style.display = 'flex';
+      initAudio();
+      playButtonClickSound();
+    });
+
+    btnCloseAimlabsMenu.addEventListener('click', () => {
+      menuContainer.style.display = 'none';
+      initAudio();
+      playButtonClickSound();
+    });
+
+    const btnPlayGame = document.getElementById('btn-play-game');
+    btnPlayGame.addEventListener('click', () => {
+      if (currentMode === 'aimlabs') {
+        startAimlabsDirectly();
+      } else if (currentMode === '1v1') {
+        if (connectedOpponentNick && activeConn) {
+          activeConn.send({ type: 'START_1V1' });
+          start1v1ArenaGame(true);
+        } else {
+          start1v1ArenaGame(true); // Modo Práctica/Solo si no hay rival en sala
+        }
+      } else if (currentMode === 'practice') {
+        start1v1ArenaGame(true);
+      }
+    });
+
+    function startAimlabsDirectly() {
+      const status = checkBanStatus();
+      if (status.isBanned) {
+        alert(`🚫 Tu cuenta está suspendida.\nTiempo restante: ${status.formatted}`);
+        return;
+      }
+      initAudio();
+      playButtonClickSound();
+      menuContainer.style.display = 'flex';
+    }
+
+    /* ==========================================================================
+       5. SISTEMA DE MAPA 3D Y DUELO 1V1 ARENA
+       ========================================================================== */
+    let arenaScene, arenaCamera, arenaRenderer;
+    let isArenaPlaying = false;
+    let myKills = 0, enemyKills = 0;
+    let playerHealth = 100;
+    let currentWeaponIndex = 0; // 0 = Subfusil, 1 = Escopeta
+
+    const WEAPONS = [
+      { name: 'SUBFUSIL', fireRate: 100, damage: 14, spread: 0.04, pellets: 1, ammo: 30, soundPitch: 1.2 },
+      { name: 'ESCOPETA', fireRate: 800, damage: 16, spread: 0.12, pellets: 8, ammo: 8, soundPitch: 0.6 }
+    ];
+
+    let lastShotTime = 0;
+    let myPosition = new THREE.Vector3(0, 1.6, 15);
+    let myRotation = { yaw: 0, pitch: 0 };
+    let keys = { w: false, a: false, s: false, d: false, space: false };
+    let yVelocity = 0;
+    let isGrounded = true;
+
+    // Objeto 3D del rival
+    let opponentMesh, opponentHeadMesh;
+    const arenaWalls = []; // Para colisiones
+
+    function init1v1ArenaScene() {
+      const container = document.getElementById('arena-canvas-container');
+      container.innerHTML = '';
+      arenaWalls.length = 0;
+
+      arenaScene = new THREE.Scene();
+      arenaScene.background = new THREE.Color(0x0d111a);
+      arenaScene.fog = new THREE.FogExp2(0x0d111a, 0.015);
+
+      arenaCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      arenaRenderer = new THREE.WebGLRenderer({ antialias: true });
+      arenaRenderer.setSize(window.innerWidth, window.innerHeight);
+      arenaRenderer.shadowMap.enabled = true;
+      container.appendChild(arenaRenderer.domElement);
+
+      // Luces
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      arenaScene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0x00f0ff, 0.8);
+      dirLight.position.set(20, 40, 20);
+      dirLight.castShadow = true;
+      arenaScene.add(dirLight);
+
+      // 1. Suelo Sólido
+      const floorGeo = new THREE.BoxGeometry(60, 2, 60);
+      const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e2230, roughness: 0.4, metalness: 0.2 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.position.set(0, -1, 0);
+      arenaScene.add(floor);
+      arenaWalls.push(new THREE.Box3().setFromObject(floor));
+
+      // Rejilla visual del suelo
+      const grid = new THREE.GridHelper(60, 30, 0x00f0ff, 0x334155);
+      grid.position.y = 0.01;
+      arenaScene.add(grid);
+
+      // 2. Paredes Sólidas del mapa 3D
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x121624, roughness: 0.5 });
+      const wallThickness = 2;
+      const wallHeight = 12;
+      const arenaSize = 60;
+
+      const wallsData = [
+        { size: [arenaSize, wallHeight, wallThickness], pos: [0, wallHeight/2, -arenaSize/2] }, // Norte
+        { size: [arenaSize, wallHeight, wallThickness], pos: [0, wallHeight/2, arenaSize/2] },  // Sur
+        { size: [wallThickness, wallHeight, arenaSize], pos: [-arenaSize/2, wallHeight/2, 0] }, // Oeste
+        { size: [wallThickness, wallHeight, arenaSize], pos: [arenaSize/2, wallHeight/2, 0] }   // Este
+      ];
+
+      wallsData.forEach(w => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(...w.size), wallMat);
+        wall.position.set(...w.pos);
+        arenaScene.add(wall);
+        arenaWalls.push(new THREE.Box3().setFromObject(wall));
+      });
+
+      // 3. Obstáculos/Coberturas de la Arena 1v1
+      const obstacleMat = new THREE.MeshStandardMaterial({ color: 0x2a324b, metalness: 0.3 });
+      const obstacles = [
+        { size: [6, 4, 6], pos: [0, 2, 0] },
+        { size: [4, 3, 10], pos: [-12, 1.5, -8] },
+        { size: [4, 3, 10], pos: [12, 1.5, 8] },
+        { size: [8, 5, 4], pos: [-10, 2.5, 12] },
+        { size: [8, 5, 4], pos: [10, 2.5, -12] }
+      ];
+
+      obstacles.forEach(o => {
+        const obs = new THREE.Mesh(new THREE.BoxGeometry(...o.size), obstacleMat);
+        obs.position.set(...o.pos);
+        arenaScene.add(obs);
+        arenaWalls.push(new THREE.Box3().setFromObject(obs));
+      });
+
+      // Mesh del Rival 3D
+      const opBodyMat = new THREE.MeshStandardMaterial({ color: #ff3366 });
+      const opHeadMat = new THREE.MeshStandardMaterial({ color: #ffffff });
+      
+      opponentMesh = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8, 16), opBodyMat);
+      body.position.y = 0.9;
+      opponentHeadMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), opHeadMat);
+      opponentHeadMesh.position.y = 1.9;
+
+      opponentMesh.add(body, opponentHeadMesh);
+      opponentMesh.position.set(0, 0, -15);
+      arenaScene.add(opponentMesh);
+    }
+
+    function start1v1ArenaGame(isHost) {
+      isArenaPlaying = true;
+      myKills = 0;
+      enemyKills = 0;
+      playerHealth = 100;
+
+      update1v1HUD();
+
+      document.getElementById('lobby-container').classList.add('hidden');
+      document.getElementById('arena-canvas-container').classList.remove('hidden');
+      document.getElementById('arena-hud').classList.remove('hidden');
+      document.getElementById('health-hud').classList.remove('hidden');
+      document.getElementById('weapon-hud').classList.remove('hidden');
+      document.getElementById('arena-crosshair').classList.remove('hidden');
+
+      init1v1ArenaScene();
+
+      // Posición inicial de spawn
+      if (isHost) {
+        myPosition.set(0, 1.6, 20);
+      } else {
+        myPosition.set(0, 1.6, -20);
+      }
+
+      document.body.requestPointerLock();
+      setup1v1Controls();
+      requestAnimationFrame(run1v1GameLoop);
+    }
+
+    function update1v1HUD() {
+      document.getElementById('my-kills-display').textContent = myKills;
+      document.getElementById('enemy-kills-display').textContent = enemyKills;
+      document.getElementById('hp-bar-fill').style.width = playerHealth + '%';
+
+      const w = WEAPONS[currentWeaponIndex];
+      document.getElementById('weapon-name').textContent = w.name;
+      document.getElementById('weapon-ammo').textContent = `${w.ammo} / ∞`;
+    }
+
+    function setup1v1Controls() {
+      window.onkeydown = (e) => {
+        if (!isArenaPlaying) return;
+        const k = e.key.toLowerCase();
+        if (k === 'w') keys.w = true;
+        if (k === 'a') keys.a = true;
+        if (k === 's') keys.s = true;
+        if (k === 'd') keys.d = true;
+        if (e.code === 'Space' && isGrounded) {
+          yVelocity = 0.18;
+          isGrounded = false;
+        }
+        if (k === '1') { currentWeaponIndex = 0; update1v1HUD(); }
+        if (k === '2') { currentWeaponIndex = 1; update1v1HUD(); }
+      };
+
+      window.onkeyup = (e) => {
+        if (!isArenaPlaying) return;
+        const k = e.key.toLowerCase();
+        if (k === 'w') keys.w = false;
+        if (k === 'a') keys.a = false;
+        if (k === 's') keys.s = false;
+        if (k === 'd') keys.d = false;
+      };
+
+      window.onmousemove = (e) => {
+        if (!isArenaPlaying || document.pointerLockElement !== document.body) return;
+        const sens = parseFloat(sensSlider.value) * 0.0012;
+        myRotation.yaw -= e.movementX * sens;
+        myRotation.pitch -= e.movementY * sens;
+        myRotation.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, myRotation.pitch));
+      };
+
+      window.onmousedown = (e) => {
+        if (isArenaPlaying && e.button === 0 && document.pointerLockElement === document.body) {
+          shoot1v1Weapon();
+        }
+      };
+    }
+
+    function shoot1v1Weapon() {
+      const now = Date.now();
+      const w = WEAPONS[currentWeaponIndex];
+      if (now - lastShotTime < w.fireRate) return;
+      lastShotTime = now;
+
+      playGunshotSound();
+
+      // Transmitir disparo a rival por PeerJS
+      if (activeConn) {
+        activeConn.send({
+          type: 'PLAYER_SHOOT',
+          weaponIndex: currentWeaponIndex,
+          origin: { x: myPosition.x, y: myPosition.y, z: myPosition.z },
+          yaw: myRotation.yaw,
+          pitch: myRotation.pitch
+        });
+      }
+
+      // Raycast local para detectar impacto en rival
+      const raycaster = new THREE.Raycaster();
+      const dir = new THREE.Vector3(0, 0, -1);
+      dir.applyAxisAngle(new THREE.Vector3(1, 0, 0), myRotation.pitch);
+      dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), myRotation.yaw);
+
+      for (let i = 0; i < w.pellets; i++) {
+        const spreadDir = dir.clone().add(new THREE.Vector3(
+          (Math.random() - 0.5) * w.spread,
+          (Math.random() - 0.5) * w.spread,
+          (Math.random() - 0.5) * w.spread
+        )).normalize();
+
+        raycaster.set(myPosition, spreadDir);
+        const intersects = raycaster.intersectObjects(opponentMesh.children);
+
+        if (intersects.length > 0) {
+          playHitSound();
+          if (activeConn) {
+            activeConn.send({
+              type: 'TAKE_DAMAGE',
+              damage: w.damage,
+              attacker: currentUserNick
+            });
+          } else {
+            // Si es práctica offline, simular daño en rival bot
+            enemyKills++;
+            if (enemyKills >= 10) finish1v1Match(true);
+            update1v1HUD();
+          }
+        }
+      }
+    }
+
+    function handleReceivedDamage(damage, attacker) {
+      playerHealth -= damage;
+      if (playerHealth <= 0) {
+        playerHealth = 100;
+        enemyKills++;
+        update1v1HUD();
+
+        // Respawn
+        myPosition.set((Math.random() - 0.5) * 30, 1.6, (Math.random() - 0.5) * 30);
+
+        if (activeConn) {
+          activeConn.send({ type: 'PLAYER_KILLED' });
+        }
+
+        if (enemyKills >= 10) {
+          finish1v1Match(false);
+        }
+      } else {
+        update1v1HUD();
+      }
+    }
+
+    function handleOpponentKilled() {
+      myKills++;
+      playWinSound();
+      update1v1HUD();
+
+      if (myKills >= 10) {
+        finish1v1Match(true);
+      }
+    }
+
+    function updateOpponentPosition(data) {
+      if (opponentMesh) {
+        opponentMesh.position.set(data.x, data.y - 1.6, data.z);
+        opponentMesh.rotation.y = data.yaw;
+      }
+    }
+
+    function handleOpponentShoot(data) {
+      playGunshotSound();
+    }
+
+    function finish1v1Match(iWon) {
+      isArenaPlaying = false;
+      document.exitPointerLock();
+
+      alert(iWon ? "🏆 ¡VICTORIA! Has alcanzado 10 Kills en el Duelo." : "💀 DERROTA. Tu rival ha alcanzado 10 Kills.");
+
+      // Volver al lobby
+      document.getElementById('arena-canvas-container').classList.add('hidden');
+      document.getElementById('arena-hud').classList.add('hidden');
+      document.getElementById('health-hud').classList.add('hidden');
+      document.getElementById('weapon-hud').classList.add('hidden');
+      document.getElementById('arena-crosshair').classList.add('hidden');
+      document.getElementById('lobby-container').classList.remove('hidden');
+    }
+
+    function run1v1GameLoop() {
+      if (!isArenaPlaying) return;
+
+      // Gravedad y Física Simple
+      yVelocity -= 0.008;
+      myPosition.y += yVelocity;
+
+      if (myPosition.y <= 1.6) {
+        myPosition.y = 1.6;
+        yVelocity = 0;
+        isGrounded = true;
+      }
+
+      // Movimiento Jugador
+      const speed = 0.18;
+      const moveVec = new THREE.Vector3();
+
+      if (keys.w) moveVec.z -= 1;
+      if (keys.s) moveVec.z += 1;
+      if (keys.a) moveVec.x -= 1;
+      if (keys.d) moveVec.x += 1;
+
+      moveVec.normalize();
+      moveVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), myRotation.yaw);
+
+      const nextPos = myPosition.clone().addScaledVector(moveVec, speed);
+
+      // Colisiones sólidas con paredes
+      const playerBoundingBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(nextPos.x, nextPos.y - 0.8, nextPos.z),
+        new THREE.Vector3(0.8, 1.8, 0.8)
+      );
+
+      let collided = false;
+      for (const wallBox of arenaWalls) {
+        if (wallBox.intersectsBox(playerBoundingBox)) {
+          collided = true;
+          break;
+        }
+      }
+
+      if (!collided) {
+        myPosition.x = nextPos.x;
+        myPosition.z = nextPos.z;
+      }
+
+      // Actualizar Cámara
+      arenaCamera.position.copy(myPosition);
+      arenaCamera.rotation.set(0, 0, 0);
+      arenaCamera.rotation.y = myRotation.yaw;
+      arenaCamera.rotation.x = myRotation.pitch;
+
+      // Enviar posición por red
+      if (activeConn && isArenaPlaying) {
+        activeConn.send({
+          type: 'PLAYER_MOVE',
+          x: myPosition.x,
+          y: myPosition.y,
+          z: myPosition.z,
+          yaw: myRotation.yaw
+        });
+      }
+
+      arenaRenderer.render(arenaScene, arenaCamera);
+      requestAnimationFrame(run1v1GameLoop);
+    }
+
+    /* ==========================================================================
+       6. AUDIO Y EFECTOS DE SONIDO
+       ========================================================================== */
+    let audioCtx = null;
+    let soundVolume = parseFloat(localStorage.getItem('aimlabs_sound_vol')) || 0.5;
+
+    function checkBanStatus() {
+      const banUntil = parseInt(localStorage.getItem('aimlabs_banned_until')) || 0;
+      const now = Date.now();
+      if (now < banUntil) {
+        const diffSecs = Math.ceil((banUntil - now) / 1000);
+        const mins = Math.floor(diffSecs / 60);
+        const secs = diffSecs % 60;
+        return { isBanned: true, mins, secs, formatted: `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}` };
+      }
+      return { isBanned: false };
+    }
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playGunshotSound() {
+      if (!audioCtx || soundVolume <= 0) return;
+      try {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(30, t + 0.15);
+
+        gain.gain.setValueAtTime(soundVolume * 0.8, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.15);
+      } catch(e) {}
+    }
+
+    function playHitSound() {
+      if (!audioCtx || soundVolume <= 0) return;
+      try {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+
+        gain.gain.setValueAtTime(soundVolume * 0.9, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.08);
+      } catch(e) {}
+    }
+
+    function playWinSound() {
+      if (!audioCtx || soundVolume <= 0) return;
+      try {
+        const now = audioCtx.currentTime;
+        const notes = [523.25, 659.25, 783.99];
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(soundVolume * 0.3, now + idx * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.25);
+        });
+      } catch(e) {}
+    }
+
+    function playButtonClickSound() {
+      if (!audioCtx || soundVolume <= 0) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(250, audioCtx.currentTime + 0.04);
+        gain.gain.setValueAtTime(soundVolume * 0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.04);
+      } catch(e) {}
+    }
+
+    /* ==========================================================================
+       7. BASE SKINS Y DATOS AIMLABS
+       ========================================================================== */
+    const SKINS = [
+      { id: 'default', name: 'Glock Estándar', color: 0x1c1e22, colorSec: 0x181a1d, rarityColor: '#b0c3d9', rarity: 'Base', sticker: null, metal: 0.2, rough: 0.6, attach: 'none', scale: 1.0 },
+      { id: 'carbon', name: 'Glock Carbono Táctica', color: 0x282c34, colorSec: 0x111318, rarityColor: '#4b69ff', rarity: 'Militar', sticker: null, metal: 0.4, rough: 0.4, attach: 'silencer', scale: 1.0 },
+      { id: 'neon', name: 'Glock Neón Cyberpunk', color: 0xff0055, colorSec: 0x111, rarityColor: '#8847ff', rarity: 'Épica', sticker: 'star', metal: 0.5, rough: 0.2, attach: 'none', scale: 1.0 },
+      { id: 'asiimov', name: 'Desert Eagle Asiimov', color: 0xff6600, colorSec: 0xffffff, rarityColor: '#d32ce6', rarity: 'Mítica', sticker: 'flame', metal: 0.4, rough: 0.3, attach: 'heavy_deagle', scale: 1.05 },
+      { id: 'gold', name: 'Gold Royale Magnum', color: 0xffd700, colorSec: 0x111111, rarityColor: '#ffd700', rarity: 'Legendaria', sticker: 'crown', metal: 0.95, rough: 0.05, attach: 'compensator', scale: 1.1 }
+    ];
+
+    let coins = parseInt(localStorage.getItem('aimlabs_coins')) || 10;
+    let ownedSkins = JSON.parse(localStorage.getItem('aimlabs_owned_skins')) || ['default'];
+    let equippedSkinId = localStorage.getItem('aimlabs_equipped_skin') || 'default';
+    let savedTheme = localStorage.getItem('aimlabs_theme') || 'dark';
+    let savedBrightness = parseInt(localStorage.getItem('aimlabs_brightness')) || 100;
+
+    function saveUserData() {
+      localStorage.setItem('aimlabs_coins', coins);
+      localStorage.setItem('aimlabs_owned_skins', JSON.stringify(ownedSkins));
+      localStorage.setItem('aimlabs_equipped_skin', equippedSkinId);
+      localStorage.setItem('aimlabs_sound_vol', soundVolume);
+      localStorage.setItem('aimlabs_theme', savedTheme);
+      localStorage.setItem('aimlabs_brightness', savedBrightness);
+      syncCurrentUserData();
+    }
+
+    const sensSlider = document.getElementById('sens-slider');
+    const sensVal = document.getElementById('sens-val');
+    const coinsVal = document.getElementById('coins-val');
+
+    function updateUIValues() {
+      coinsVal.textContent = coins;
+      document.getElementById('inv-count').textContent = ownedSkins.length;
+      document.getElementById('inv-total').textContent = SKINS.length;
+      document.getElementById('total-skins-count').textContent = SKINS.length;
+    }
+
+    sensSlider.addEventListener('input', (e) => {
+      sensVal.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+  </script>
+</body>
+</html>
